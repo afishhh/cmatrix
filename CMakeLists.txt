@@ -3,7 +3,7 @@
 cmake_minimum_required(VERSION 2.8)
 
 project(CMatrix LANGUAGES C)
-set(VERSION "2.0")
+set(VERSION "2.1")
 
 include(GNUInstallDirs)
 

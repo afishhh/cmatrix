@@ -175,9 +175,8 @@ void usage(void) {
 void version(void) {
     printf(" CMatrix version %s (compiled %s, %s)\n",
         VERSION, __TIME__, __DATE__);
-    printf("With Fishhh's classic improvements patch\n");
-    printf("Email: abishekvashok@gmail.com\n");
-    printf("Web: https://github.com/abishekvashok/cmatrix\n");
+    printf("Repository: https://github.com/afishhh/cmatrix\n");
+    printf("Forked from: https://github.com/abishekvashok/cmatrix\n");
 }
 
 
