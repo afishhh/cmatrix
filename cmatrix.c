@@ -122,6 +122,7 @@ void finish(void) {
 }
 
 /* What we do when we're all set to exit */
+__attribute__((noreturn))
 void c_die(char *msg, ...) {
 
     va_list ap;
@@ -153,6 +154,7 @@ void usage(void) {
     printf(" -B: All bold characters (overrides -b)\n");
     printf(" -c: Use Japanese characters as seen in the original matrix. Requires appropriate fonts\n");
     printf(" -f: Force the linux $TERM type to be on\n");
+    printf(" -F: Use exclusively fullwidth katakana characters. Requires appriopriate fonts.\n");
     printf(" -l: Linux mode (uses matrix console font)\n");
     printf(" -L: Lock mode (can be closed from another terminal)\n");
     printf(" -o: Use old-style scrolling\n");
@@ -173,6 +175,7 @@ void usage(void) {
 void version(void) {
     printf(" CMatrix version %s (compiled %s, %s)\n",
         VERSION, __TIME__, __DATE__);
+    printf("With Fishhh's classic improvements patch\n");
     printf("Email: abishekvashok@gmail.com\n");
     printf("Web: https://github.com/abishekvashok/cmatrix\n");
 }
@@ -310,6 +313,48 @@ void resize_screen(void) {
     refresh();
 }
 
+const int randcnt_letters_and_numbers = ('Z' - 'A' + 1) + ('z' - 'a' + 1) + 10;
+int randfun_letters_and_numbers() {
+    int v = rand() % randcnt_letters_and_numbers;
+    if(v < ('Z' - 'A' + 1))
+        return v + 'A';
+    v -= 'A';
+
+    if(v < ('z' - 'a' + 1))
+        return v + 'a';
+    v -= 97;
+
+    if(v < 10)
+        return v + '0';
+    v -= '0';
+
+    c_die("randfun_letters_and_numbers: Value out of range");
+}
+
+const int randcnt_fullwidth_katakana = 0x30fa - 0x30a1;
+int randfun_fullwidth_katakana() {
+    return rand() % (0x30fa - 0x30a1) + 0x30a1;
+}
+
+const int randcnt_original = 0xff9f - 0xff61 + randcnt_letters_and_numbers;
+int randfun_original() {
+    int v = rand() % 100;
+    if(v < 30)
+        return randfun_letters_and_numbers();
+
+    return rand() % (0xff9f - 0xff61) + 0xff61;
+}
+
+const int randcnt_console = 217 - 166;
+int randfun_console() {
+    return rand() % (randcnt_console) + 166;
+}
+
+const int randcnt_ascii = 123 - 33;
+int randfun_ascii() {
+    return rand() % (randcnt_ascii) + 33;
+}
+
 int main(int argc, char *argv[]) {
     int i, y, z, optchr, keypress;
     int j = 0;
@@ -322,12 +367,11 @@ int main(int argc, char *argv[]) {
     int oldstyle = 0;
     int random = 0;
     int update = 4;
-    int highnum = 0;
     int mcolor = COLOR_GREEN;
     int rainbow = 0;
     int lambda = 0;
-    int randnum = 0;
-    int randmin = 0;
+    int(*randfun)() = NULL;
+    int randcnt = 0;
     int pause = 0;
     int classic = 0;
     int changes = 0;
@@ -339,7 +383,7 @@ int main(int argc, char *argv[]) {
 
     /* Many thanks to morph- (morph@jmss.com) for this getopt patch */
     opterr = 0;
-    while ((optchr = getopt(argc, argv, "abBcfhlLnrosmxkVM:u:C:t:")) != EOF) {
+    while ((optchr = getopt(argc, argv, "abBcfFhlLnrosmxkVM:u:C:t:")) != EOF) {
         switch (optchr) {
         case 's':
             screensaver = 1;
@@ -380,6 +424,9 @@ int main(int argc, char *argv[]) {
             break;
         case 'c':
             classic = 1;
+            break;
+        case 'F':
+            classic = 2;
             break;
         case 'f':
             force = 1;
@@ -522,21 +569,24 @@ if (console) {
     }
 
     /* Set up values for random number generation */
-    if (classic) {
+    if(classic == 1) {
         /* Half-width kana characters. In the movie they are y-axis flipped, and
          * they appear alongside latin characters and numerals, but this is the
          * closest we can do with a standard unicode set and a single number
          * range */
-        randmin = 0xff66;
-        highnum = 0xff9d;
+        // update: now the only thing missing from this description is the y-axis flip
+        randfun = randfun_original;
+        randcnt = randcnt_original;
+    } else if(classic == 2) {
+        randfun = randfun_fullwidth_katakana;
+        randcnt = randcnt_fullwidth_katakana;
     } else if (console || xwindow) {
-        randmin = 166;
-        highnum = 217;
+        randfun = randfun_console;
+        randcnt = randcnt_console;
     } else {
-        randmin = 33;
-        highnum = 123;
+        randfun = randfun_ascii;
+        randcnt = randcnt_ascii;
     }
-    randnum = highnum - randmin;
 
     var_init();
 
@@ -657,7 +707,7 @@ if (console) {
                 }
             }
         }
-        for (j = 0; j <= COLS - 1; j += 2) {
+        for (j = 0; j <= COLS - 1; j += 2 + (classic == 2) * 2) {
             if ((count > updates[j] || asynch == 0) && pause == 0) {
 
                 /* I don't like old-style scrolling, yuck */
@@ -665,7 +715,7 @@ if (console) {
                     for (i = LINES - 1; i >= 1; i--) {
                         matrix[i][j].val = matrix[i - 1][j].val;
                     }
-                    random = (int) rand() % (randnum + 8) + randmin;
+                    random = rand() % (randcnt + 8);
 
                     if (matrix[1][j].val == 0) {
                         matrix[0][j].val = 1;
@@ -682,14 +732,14 @@ if (console) {
                             if (((int) rand() % 3) == 1) {
                                 matrix[0][j].val = 0;
                             } else {
-                                matrix[0][j].val = (int) rand() % randnum + randmin;
+                                matrix[0][j].val = randfun();
                             }
                             spaces[j] = (int) rand() % LINES + 1;
                         }
-                    } else if (random > highnum && matrix[1][j].val != 1) {
+                    } else if (random > randcnt && matrix[1][j].val != 1) {
                         matrix[0][j].val = ' ';
                     } else {
-                        matrix[0][j].val = (int) rand() % randnum + randmin;
+                        matrix[0][j].val = randfun();
                     }
 
                 } else { /* New style scrolling (default) */
@@ -699,7 +749,7 @@ if (console) {
                     } else if (matrix[0][j].val == -1
                         && matrix[1][j].val == ' ') {
                         length[j] = (int) rand() % (LINES - 3) + 3;
-                        matrix[0][j].val = (int) rand() % randnum + randmin;
+                        matrix[0][j].val = randfun();
 
                         spaces[j] = (int) rand() % LINES + 1;
                     }
@@ -726,7 +776,7 @@ if (console) {
                             matrix[i][j].is_head = false;
                             if (changes) {
                                 if (rand() % 8 == 0)
-                                    matrix[i][j].val = (int) rand() % randnum + randmin;
+                                    matrix[i][j].val = randfun();
                             }
                             i++;
                             y++;
@@ -737,7 +787,7 @@ if (console) {
                             continue;
                         }
 
-                        matrix[i][j].val = (int) rand() % randnum + randmin;
+                        matrix[i][j].val = randfun();
                         matrix[i][j].is_head = true;
 
                         /* If we're at the top of the column and it's reached its
@@ -782,7 +832,10 @@ if (console) {
                     } else if (matrix[i][j].val == -1) {
                         addch(' ');
                     } else {
-                        addch(matrix[i][j].val);
+                        wchar_t char_array[2];
+                        char_array[0] = matrix[i][j].val;
+                        char_array[1] = 0;
+                        addwstr(char_array);
                     }
 
                     attroff(COLOR_PAIR(COLOR_WHITE));
@@ -839,6 +892,13 @@ if (console) {
                         } else if (lambda && matrix[i][j].val != ' ') {
                             addstr("λ");
                         } else {
+                            /* This fixes issue with the coloring of fullwidth characters
+                             * How? I don't know.
+                             */
+                            if(classic == 2) {
+                                addstr("  ");
+                                move(i-y,j);
+                            }
                             /* addch doesn't seem to work with unicode
                              * characters and there was no direct equivalent.
                              * So, construct a c-style string with the character
