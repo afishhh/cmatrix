@@ -312,22 +312,10 @@ void resize_screen(void) {
     refresh();
 }
 
-const int randcnt_letters_and_numbers = ('Z' - 'A' + 1) + ('z' - 'a' + 1) + 10;
+char randchars_letters_and_numbers[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const int randcnt_letters_and_numbers = sizeof randchars_letters_and_numbers;
 int randfun_letters_and_numbers() {
-    int v = rand() % randcnt_letters_and_numbers;
-    if(v < ('Z' - 'A' + 1))
-        return v + 'A';
-    v -= 'A';
-
-    if(v < ('z' - 'a' + 1))
-        return v + 'a';
-    v -= 97;
-
-    if(v < 10)
-        return v + '0';
-    v -= '0';
-
-    c_die("randfun_letters_and_numbers: Value out of range");
+    return randchars_letters_and_numbers[rand() % randcnt_letters_and_numbers];
 }
 
 const int randcnt_fullwidth_katakana = 0x30fa - 0x30a1;
@@ -891,7 +879,7 @@ if (console) {
                         } else if (lambda && matrix[i][j].val != ' ') {
                             addstr("λ");
                         } else {
-                            /* This fixes issue with the coloring of fullwidth characters
+                            /* This fixes an issue with the coloring of fullwidth characters
                              * How? I don't know.
                              */
                             if(classic == 2) {
